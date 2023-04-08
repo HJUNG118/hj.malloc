@@ -114,35 +114,37 @@ static void *extend_heap(size_t words)
 
 static void *find_fit(size_t asize)
 {
-    char *bp;
-    bp = heap_listp + DSIZE;
+    char *bp = heap_listp + WSIZE;
     size_t size = GET_SIZE(bp);
     size_t state = GET_ALLOC(bp);
-    while(size != 0)
-    {
-        bp = bp - WSIZE;
-        if(state == 0 && size >= asize){
-            return bp+WSIZE;
+    while (size < asize && GET_SIZE(FTRP(bp) + WSIZE) != 0) {
+        if (state == 0 && size >= asize) {
+            PUT(bp - WSIZE, PACK(asize, 1));
+            PUT(bp + asize - DSIZE, PACK(asize, 1));
+            PUT(bp + asize - WSIZE, PACK(size - asize, 0));
+            PUT(bp + size - DSIZE, PACK(size - asize, 0));
+            return bp;
         }
-        bp += asize;
+        bp += size;
+        state = GET_ALLOC(bp - WSIZE);
+        size = GET_SIZE(bp - WSIZE);
     }
     return NULL;
 }
 
 static void place(void *bp, size_t asize)
 {
-    size_t origin_size = GET_SIZE(bp);
-    if(origin_size - asize >= 2*DSIZE){
+    size_t origin_size = GET_SIZE(bp - WSIZE);
+    if (origin_size - asize >= 2 * DSIZE) {
         PUT(HDRP(bp), PACK(asize, 1));
-        PUT(FTRP(bp+asize-WSIZE), PACK(asize, 1));
-        PUT(HDRP(bp+asize), PACK(origin_size - asize, 0));
-        PUT(FTRP(bp), PACK(origin_size - asize, 0));
+        PUT(FTRP(bp), PACK(asize, 1));
+        PUT(HDRP(bp + asize), PACK(origin_size - asize, 0));
+        mm_free(bp + asize);
     }
-    else{
+    else {
         PUT(HDRP(bp), PACK(origin_size, 1));
-        PUT(FTRP(bp+origin_size-WSIZE), PACK(origin_size, 1));
+        PUT(FTRP(bp), PACK(origin_size, 1));
     }
-
 }
 
 

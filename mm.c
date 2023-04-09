@@ -32,7 +32,7 @@ team_t team = {
     /* Second member's full name (leave blank if none) */
     "SeongbeomAhn",
     /* Second member's email address (leave blank if none) */
-    "an4126@gmail.com"
+    "MinkiJo"
 };
 
 #define WSIZE 4 // 워드 = 헤더 = 풋터 사이즈(bytes)
@@ -49,8 +49,8 @@ team_t team = {
 #define GET_SIZE(p) (GET(p) & ~0x7) // and 연산으로 주소 p에 있는 사이즈를 얻는다. 하위 3비트를 제외한 값을 읽는다.
 #define GET_ALLOC(p) (GET(p) & 0x1) // GET(p)의 가장 오른쪽 비트를 추출한다. 비트가 1이면 할당상태 0이면 가용상태
 
-#define HDRP(bp) ((char *)(bp) - WSIZE) // 헤더(데이터+풋터 이전 위치) 반환
-#define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE) // 풋터(헤더+데이터+풋터 - 헤더+풋터 이전 위치) 반환
+#define HDRP(bp) ((char *)(bp) - WSIZE) // 헤더 반환
+#define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE) // 풋터 반환
 
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE))) // 다음 블록 포인터 반환
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) // 이전 블록 포인터 반환 
@@ -70,7 +70,7 @@ static void *extend_heap(size_t words);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
 
-// 힙 메모리 시작 주소
+// 프롤로그 블록
 static char *heap_listp;
 // 최초 가용 블록으로 힙 생성하기
 int mm_init(void)
@@ -112,66 +112,39 @@ static void *extend_heap(size_t words)
 
 }
 
+// 할당하려고 하는 메모리가 들어갈 수 있는 블록 찾기
 static void *find_fit(size_t asize)
 {
-    char *bp = heap_listp + DSIZE;
-    size_t size = GET_SIZE(bp);
-    size_t state = GET_ALLOC(bp);
-    while (size < asize && GET_SIZE(FTRP(bp) + WSIZE) != 0) {
-        if (state == 0 && size >= asize) {
-            PUT(bp - WSIZE, PACK(asize, 1));
-            PUT(bp + asize - DSIZE, PACK(asize, 1));
-            PUT(bp + asize - WSIZE, PACK(size - asize, 0));
-            PUT(bp + size - DSIZE, PACK(size - asize, 0));
+    char *bp = heap_listp + DSIZE; // prologue 풋터에서 8바이트 즉. 다음 헤더의 payload를 가리키게 한다.
+    size_t size = GET_SIZE(HDRP(bp)); // 헤더의 사이즈와 할당 여부 저장
+    size_t state = GET_ALLOC(HDRP(bp));
+    while (1) {
+        if (bp > (char*)mem_heap_hi()){ // 헤더의 주소가 epilogue를 넘어서면 NULL반환
+            return NULL;
+        }
+        if (state == 0 && size >= asize) { // 가용상태이고 할당하려고 하는 메모리 사이즈보다 크거나 같다면 해당 bp를 반환
             return bp;
         }
-        bp += size;
+        bp += size; // bp 포인터와 할당상태, 사이즈를 갱신해준다.
         state = GET_ALLOC(bp - WSIZE);
         size = GET_SIZE(bp - WSIZE);
     }
-    return NULL;
 }
-// static void *find_fit(size_t asize){
-//     void *bp;
-
-//     for(bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)){
-//         if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))){
-//             return bp;
-//         }
-//     }
-//     return NULL; // No fit
-// }
 
 static void place(void *bp, size_t asize)
 {
-    size_t origin_size = GET_SIZE(bp - WSIZE);
-    if (origin_size - asize >= 2 * DSIZE) {
+    size_t origin_size = GET_SIZE(bp - WSIZE); // 할당 가능한 메모리 블록의 사이즈 저장
+    if (origin_size - asize >= 2 * DSIZE) { // 할당 가능한 블록에서 할당할 블록의 사이즈 차가 쿼드워드보다 크거나 같다면 안쓰는 부분을 가용상태로
         PUT(HDRP(bp), PACK(asize, 1));
         PUT(FTRP(bp), PACK(asize, 1));
         PUT(HDRP(bp + asize), PACK(origin_size - asize, 0));
         mm_free(bp + asize);
     }
-    else {
+    else { // 안쓰는 블록을 쪼개봤자 필요가 없다면, 전부 할당한다.
         PUT(HDRP(bp), PACK(origin_size, 1));
         PUT(FTRP(bp), PACK(origin_size, 1));
     }
 }
-// static void place(void *bp, size_t asize){
-//     size_t csize = GET_SIZE(HDRP(bp));
-
-//     if ((csize - asize) >= (2*DSIZE)){
-//         PUT(HDRP(bp), PACK(asize,1));//현재 크기를 헤더에 집어넣고
-//         PUT(FTRP(bp), PACK(asize,1));
-//         bp = NEXT_BLKP(bp);
-//         PUT(HDRP(bp), PACK(csize-asize,0));
-//         PUT(FTRP(bp), PACK(csize-asize,0));
-//     }
-//     else{
-//         PUT(HDRP(bp), PACK(csize,1));
-//         PUT(FTRP(bp), PACK(csize,1));
-//     }
-// }
-
 
 
 // 가용 리스트에서 블록 할당하기
@@ -274,7 +247,7 @@ void *mm_realloc(void *ptr, size_t size)
     copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE); // oldptr이 가리키는 블록의 시작 주소에서 8바이트 뒤에 있는 즉, 헤더에 있는 사이즈 저장
     if (size < copySize) // 늘리고싶은 메모리 크기가 원본의 메모리 크기보다 작다면 
       copySize = size; // 원본의 메모리 크기를 size로 바꿔서 메모리 낭비를 줄인다.
-    memcpy(newptr, oldptr, copySize); // oldptr이 가리키는 메모리 블록에서 copysize만큼 데이터를 newptr이 가리키는 메모리 블록으로 복사
+    memcpy(newptr, oldptr, size); // oldptr이 가리키는 메모리 블록에서 copysize만큼 데이터를 newptr이 가리키는 메모리 블록으로 복사
     mm_free(oldptr);
     return newptr;
 }

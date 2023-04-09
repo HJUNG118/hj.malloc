@@ -55,10 +55,10 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE))) // 다음 블록 포인터 반환
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) // 이전 블록 포인터 반환
 
-#define PRED_LOC HDRP(bp)+WSIZE // prev가 들어갈 주소
-#define SUCC_LOC HDRP(bp)+DSIZE // succ가 들어갈 주소
-#define PRED *(char *)PRED_LOC(bp) // pred
-#define SUCC *(char *)SUCC_LOC(bp)
+#define PRED_LOC(bp) HDRP(bp)+WSIZE // prev가 들어갈 주소
+#define SUCC_LOC(bp) HDRP(bp)+DSIZE // succ가 들어갈 주소
+#define PRED(bp) *(char *)PRED_LOC(bp) // pred
+#define SUCC(bp) *(char *)SUCC_LOC(bp)
 
 
 /* single word (4) or double word (8) alignment */
@@ -107,6 +107,7 @@ static void *extend_heap(size_t words)
 {
     char *bp;
     size_t size;
+    char *new_bp = bp + WSIZE;
 
     // 요청한 크기를 2워드의 배수로 반올림하고 추가 힙 공간 요청
     // words가 홀수라면 반올림하고 추가 힙 공간 요청
@@ -114,10 +115,15 @@ static void *extend_heap(size_t words)
     if ((long)(bp = mem_sbrk(size)) == -1){
         return NULL;
     }
-
-    PUT(HDRP(bp), PACK(size, 0)); // size만큼 가용블록 생성
-    PUT(FTRP(bp), PACK(size, 0)); 
+    if(bp == heap_listp+DSIZE){ // 처음이라면 bp return
+        return bp;
+    }
+    PUT(HDRP(new_bp), PACK(size, 0)); // size만큼 가용블록 생성
+    PUT(FTRP(new_bp), PACK(size, 0)); 
+    PUT(PRED_LOC(new_bp), NULL);
+    PUT(SUCC_LOC(new_bp), ); // 가장 마지막에 생성된 free 블록의 successor를 가리켜야 한다.
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새 에필로그의 헤더가 된다.
+    root = SUCC_LOC(bp);
 
     return coalesce(bp);
 
@@ -126,20 +132,21 @@ static void *extend_heap(size_t words)
 // 할당하려고 하는 메모리가 들어갈 수 있는 블록 찾기
 static void *find_fit(size_t asize)
 {
-    char *bp = heap_listp + DSIZE; // prologue 풋터에서 8바이트 즉. 다음 헤더의 payload를 가리키게 한다.
-    size_t size = GET_SIZE(HDRP(bp)); // 헤더의 사이즈와 할당 여부 저장
-    size_t state = GET_ALLOC(HDRP(bp));
-    while (1) {
-        if (bp > (char*)mem_heap_hi()){ // 헤더의 주소가 epilogue를 넘어서면 NULL반환
-            return NULL;
+    char *bp = root; // bp는 가장 첫번째 free 블록을 가리킨다.
+    size_t size = GET_SIZE(HDRP(bp-WSIZE)); // 헤더의 사이즈와 할당 여부 저장
+    
+    while(size < asize)
+    {
+        if(bp == heap_listp)
+        {
+            retrun NULL;
         }
-        if (state == 0 && size >= asize) { // 가용상태이고 할당하려고 하는 메모리 사이즈보다 크거나 같다면 해당 bp를 반환
-            return bp;
-        }
-        bp += size; // bp 포인터와 할당상태, 사이즈를 갱신해준다.
-        state = GET_ALLOC(bp - WSIZE);
-        size = GET_SIZE(bp - WSIZE);
+        bp = SUCC(bp);
+        size = GET_SIZE(HDRP(bp-WSIZE));
     }
+    return bp-WSIZE;
+    // PUT(HDRP(bp-WSIZE), PACK(asize, 1));
+    // PUT(FTRP(bp-WSIZE), PACK(asize, 1));
 }
 
 static void place(void *bp, size_t asize) // 수정 필요
@@ -178,9 +185,9 @@ void *mm_malloc(size_t size)
 
     // 요청한 메모리 블록의 크기를 바탕으로 실제 할당할 메모리 크기 계산
     if (size <= DSIZE){ // 요청 메모리가 더블워드보다 작으면 쿼드 워드로 설정
-        asize = 2*DSIZE;
+        asize = 3*DSIZE;
     }else{ // 그 외에는 요청한 메모리 크기에 헤더와 풋터의 오버헤드를 고려해서 크기 설정
-        asize = DSIZE*((size+(DSIZE) + (DSIZE-1)) / DSIZE);
+        asize = DSIZE*((size+(3*DSIZE) + (DSIZE-1)) / DSIZE);
     }
 
     // 가용 블록을 가용리스트에서 검색하고 할당기는 요청한 블록을 배치한다.

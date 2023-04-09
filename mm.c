@@ -32,7 +32,7 @@ team_t team = {
     /* Second member's full name (leave blank if none) */
     "SeongbeomAhn",
     /* Second member's email address (leave blank if none) */
-    "MinkiJo"
+    "MinkiCho"
 };
 
 #define WSIZE 4 // 워드 = 헤더 = 풋터 사이즈(bytes)
@@ -53,7 +53,12 @@ team_t team = {
 #define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE) // 풋터 반환
 
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE))) // 다음 블록 포인터 반환
-#define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) // 이전 블록 포인터 반환 
+#define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) // 이전 블록 포인터 반환
+
+#define PRED_LOC HDRP(bp)+WSIZE // prev가 들어갈 주소
+#define SUCC_LOC HDRP(bp)+DSIZE // succ가 들어갈 주소
+#define PRED *(char *)PRED_LOC(bp) // pred
+#define SUCC *(char *)SUCC_LOC(bp)
 
 
 /* single word (4) or double word (8) alignment */
@@ -73,6 +78,7 @@ static void place(void *bp, size_t asize);
 // 프롤로그 블록
 static char *heap_listp;
 // 최초 가용 블록으로 힙 생성하기
+void *root = NULL; // root 포인터 선언
 int mm_init(void)
 {
     // mem_sbrk: 힙 영역을 incr bytes만큼 확장, 새로 할당된 힙 영역의 첫번째 byte를 가리키는 포인터 리턴
@@ -89,6 +95,11 @@ int mm_init(void)
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL){
         return -1;
     }
+    void *start = heap_listp + DSIZE;
+    PUT(HDRP(start), PACK(CHUNKSIZE, 0));
+    PUT(FTRP(start), PACK(CHUNKSIZE, 0));
+    PUT(PRED_LOC(start), NULL);
+    PUT(SUCC_LOC(start), heap_listp);
     return 0;
 }
 // 새 가용 블록으로 힙 확장하기
@@ -131,7 +142,7 @@ static void *find_fit(size_t asize)
     }
 }
 
-static void place(void *bp, size_t asize)
+static void place(void *bp, size_t asize) // 수정 필요
 {
     size_t origin_size = GET_SIZE(bp - WSIZE); // 할당 가능한 메모리 블록의 사이즈 저장
     if (origin_size - asize >= 2 * DSIZE) { // 할당 가능한 블록에서 할당할 블록의 사이즈 차가 쿼드워드보다 크거나 같다면 안쓰는 부분을 가용상태로
@@ -145,7 +156,6 @@ static void place(void *bp, size_t asize)
         PUT(FTRP(bp), PACK(origin_size, 1));
     }
 }
-
 
 // 가용 리스트에서 블록 할당하기
 void *mm_malloc(size_t size)
@@ -189,10 +199,8 @@ void *mm_malloc(size_t size)
     return bp;
 }
 
-// 
-
 // 경계 태그 연결을 사용해서 상수 시간에 인접 가용 블록들과 통합한다.
-static void *coalesce(void *bp)
+static void *coalesce(void *bp) // 수정 필요
 {
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp))); // 이전 블록의 헤더에서 할당 정보 저장
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp))); // 다음 블록의 헤더에서 할당 정보 저장

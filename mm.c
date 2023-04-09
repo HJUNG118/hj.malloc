@@ -118,17 +118,27 @@ static void *find_fit(size_t asize)
     char *bp = heap_listp + DSIZE; // prologue 풋터에서 8바이트 즉. 다음 헤더의 payload를 가리키게 한다.
     size_t size = GET_SIZE(HDRP(bp)); // 헤더의 사이즈와 할당 여부 저장
     size_t state = GET_ALLOC(HDRP(bp));
-    while (1) {
-        if (bp > (char*)mem_heap_hi()){ // 헤더의 주소가 epilogue를 넘어서면 NULL반환
-            return NULL;
-        }
-        if (state == 0 && size >= asize) { // 가용상태이고 할당하려고 하는 메모리 사이즈보다 크거나 같다면 해당 bp를 반환
+    // while (1) {
+    //     if (bp > (char*)mem_heap_hi()){ // 헤더의 주소가 epilogue를 넘어서면 NULL반환
+    //         return NULL; 
+    //     }
+    //     if (state == 0 && size >= asize) { // 가용상태이고 할당하려고 하는 메모리 사이즈보다 크거나 같다면 해당 bp를 반환
+    //         return bp;
+    //     }
+    //     bp += size; // bp 포인터와 할당상태, 사이즈를 갱신해준다.
+    //     state = GET_ALLOC(bp - WSIZE);
+    //     size = GET_SIZE(bp - WSIZE);
+    // }
+
+    while (GET_SIZE(HDRP(bp)) != 0) {    //  넌 아니야 GET_SIZE(FTRP(bp) + WSIZE)
+        if (state == 0 && size >= asize) {
             return bp;
         }
-        bp += size; // bp 포인터와 할당상태, 사이즈를 갱신해준다.
+        bp += size;
         state = GET_ALLOC(bp - WSIZE);
         size = GET_SIZE(bp - WSIZE);
     }
+    return NULL;
 }
 
 static void place(void *bp, size_t asize)

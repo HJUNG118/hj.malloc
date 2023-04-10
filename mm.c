@@ -59,7 +59,6 @@ team_t team = {
 #define SUCC_LOC(bp) HDRP(bp)+DSIZE // succ가 들어갈 주소
 #define POST_PRED(bp) *(char *)PRED_LOC(bp) // pred
 #define NEXT_SUCC(bp) *(char *)SUCC_LOC(bp)
-#define FIRST POST_PRED(bp) 
 
 
 /* single word (4) or double word (8) alignment */
@@ -84,7 +83,7 @@ int mm_init(void)
 {
     // mem_sbrk: 힙 영역을 incr bytes만큼 확장, 새로 할당된 힙 영역의 첫번째 byte를 가리키는 포인터 리턴
     // 불러올 수 없으면 -1 반환
-    if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *) - 1){
+    if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1){
         return -1;
     }
     PUT(heap_listp, 0); // 패딩 할당

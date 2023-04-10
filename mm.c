@@ -57,8 +57,8 @@ team_t team = {
 
 #define PRED_LOC(bp) HDRP(bp)+WSIZE // prev가 들어갈 주소
 #define SUCC_LOC(bp) HDRP(bp)+DSIZE // succ가 들어갈 주소
-#define POST_PRED(bp) *(char *)PRED_LOC(bp) // pred
-#define NEXT_SUCC(bp) *(char *)SUCC_LOC(bp)
+#define POST_PRED(bp) GET(PRED_LOC(bp))// pred
+#define NEXT_SUCC(bp) GET(SUCC_LOC(bp))//  *(char *)SUCC_LOC(bp)
 
 
 /* single word (4) or double word (8) alignment */
@@ -101,6 +101,9 @@ int mm_init(void)
     PUT(PRED_LOC(start), heap_listp-WSIZE);
     PUT(SUCC_LOC(start), heap_listp);
     root = SUCC_LOC(start);
+    printf("*PRED_LOC(start):%p\n, heap_listp-WSIZE:%p\n", *(PRED_LOC(start)), heap_listp-WSIZE);
+    // printf("NEXT_SUCC:%p\n", NEXT_SUCC(start));
+    
 
     return 0;
 }
@@ -139,16 +142,14 @@ static void *find_fit(size_t asize)
     
     while(size < asize)
     {
-        if(NEXT_SUCC(bp) == heap_listp)
+        if(NEXT_SUCC(bp-WSIZE) == heap_listp)
         {
             return NULL;
         }
-        bp = NEXT_SUCC(bp);
+        bp = NEXT_SUCC(bp-WSIZE);
         size = GET_SIZE(HDRP(bp-WSIZE));
     }
     return bp-WSIZE;
-    // PUT(HDRP(bp-WSIZE), PACK(asize, 1));
-    // PUT(FTRP(bp-WSIZE), PACK(asize, 1));
 }
 
 static void place(void *bp, size_t asize) // 수정 필요 
@@ -168,6 +169,12 @@ static void place(void *bp, size_t asize) // 수정 필요
 
         }
         else{
+            printf("new:%p\n", new_bp);
+            printf("ex:%p\n", ex_bp);
+            printf("PRED_LOC(new_bp):%p\n", PRED_LOC(new_bp));
+            printf("SUCC_LOC(new_bp):%p\n", SUCC_LOC(new_bp));
+            printf("POST_PRED:%p\n", POST_PRED(bp));
+            printf("NEXT_SUCC:%p\n", NEXT_SUCC(bp));
             PUT(SUCC_LOC(POST_PRED(bp)), NEXT_SUCC(bp));
             PUT(PRED_LOC(NEXT_SUCC(bp)), POST_PRED(bp));
             PUT(HDRP(bp), PACK(asize, 1));

@@ -154,8 +154,9 @@ static void *find_fit(size_t asize)
 
 static void place(void *bp, size_t asize) // 수정 필요 
 {
-    void *new_bp = bp + asize;
     size_t origin_size = GET_SIZE(HDRP(bp)); // 할당 가능한 메모리 블록의 사이즈 저장
+    char *new_bp = bp + asize;
+    char *ex_bp = bp + origin_size;
     if (origin_size - asize >= 3 * DSIZE) { // 할당 가능한 블록에서 할당할 블록의 사이즈 차가 쿼드워드보다 크거나 같다면 안쓰는 부분을 가용상태로
         if (POST_PRED(bp) == heap_listp-WSIZE){
             PUT(PRED_LOC(new_bp), heap_listp-WSIZE);
@@ -164,7 +165,6 @@ static void place(void *bp, size_t asize) // 수정 필요
             PUT(FTRP(bp), PACK(asize, 1));
             PUT(HDRP(new_bp), PACK(origin_size - asize, 0));
             PUT(FTRP(new_bp), PACK(origin_size - asize, 0));
-            mm_free(new_bp);
             root = SUCC_LOC(new_bp);
 
         }
@@ -183,13 +183,19 @@ static void place(void *bp, size_t asize) // 수정 필요
     else { // 안쓰는 블록을 쪼개봤자 필요가 없다면, 전부 할당한다.
         // 할당할 때는 prev, succ 포인터 필요 없음
         if (POST_PRED(bp) == heap_listp-WSIZE){
-            PUT(PRED_LOC(new_bp), heap_listp-WSIZE);
-            PUT(SUCC_LOC(new_bp), heap_listp);
-            root = SUCC_LOC(new_bp);
+            ex_bp = extend_heap(CHUNKSIZE/WSIZE);
+            PUT(PRED_LOC(ex_bp), heap_listp-WSIZE);
+            PUT(SUCC_LOC(ex_bp), heap_listp);
+            PUT(HDRP(bp), PACK(origin_size, 1));
+            PUT(FTRP(bp), PACK(origin_size, 1));
+            root = SUCC_LOC(ex_bp);
         }
-        root = NEXT_SUCC(bp);
-        PUT(HDRP(bp), PACK(origin_size, 1));
-        PUT(FTRP(bp), PACK(origin_size, 1));
+        else{
+            PUT(SUCC_LOC(POST_PRED(bp)), NEXT_SUCC(bp));
+            PUT(PRED_LOC(NEXT_SUCC(bp)), POST_PRED(bp));
+            PUT(HDRP(bp), PACK(origin_size, 1));
+            PUT(FTRP(bp), PACK(origin_size, 1));
+        }
     }
 }
 
@@ -269,7 +275,7 @@ void mm_free(void *bp)
     PUT(HDRP(bp), PACK(size, 0)); // bp에 할당된 메모리 블록의 헤더 가용상태로 변경
     PUT(FTRP(bp), PACK(size, 0)); // bp에 할당된 메모리 블록의 풋터 가용상태로 변경
     PUT(POST_PRED(bp), NULL);
-    PUT(NEXT_SUCC(bp), SUCC(root));
+    PUT(NEXT_SUCC(bp), NEXT_SUCC(root));
     root = SUCC_LOC(bp);
     coalesce(bp); // bp에 할당된 메모리 블록과 인접한 블록들을 병합하는 함수 호출
 }

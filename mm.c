@@ -100,6 +100,7 @@ int mm_init(void)
     PUT(FTRP(start), PACK(CHUNKSIZE, 0));
     PUT(PRED_LOC(start), NULL);
     PUT(SUCC_LOC(start), heap_listp);
+    root = SUCC_LOC(start);
     return 0;
 }
 // 새 가용 블록으로 힙 확장하기
@@ -107,7 +108,7 @@ static void *extend_heap(size_t words)
 {
     char *bp;
     size_t size;
-    char *new_bp = bp + WSIZE;
+    // char *new_bp = bp + WSIZE;
 
     // 요청한 크기를 2워드의 배수로 반올림하고 추가 힙 공간 요청
     // words가 홀수라면 반올림하고 추가 힙 공간 요청
@@ -115,15 +116,15 @@ static void *extend_heap(size_t words)
     if ((long)(bp = mem_sbrk(size)) == -1){
         return NULL;
     }
-    if(bp == heap_listp+DSIZE){ // 처음이라면 bp return
-        return bp;
-    }
-    PUT(HDRP(new_bp), PACK(size, 0)); // size만큼 가용블록 생성
-    PUT(FTRP(new_bp), PACK(size, 0)); 
-    PUT(PRED_LOC(new_bp), NULL);
-    PUT(SUCC_LOC(new_bp), ); // 가장 마지막에 생성된 free 블록의 successor를 가리켜야 한다.
-    PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새 에필로그의 헤더가 된다.
-    root = SUCC_LOC(bp);
+    // if(bp == heap_listp+DSIZE){ // 처음이라면 bp return
+    //     return bp;
+    // }
+    // PUT(HDRP(new_bp), PACK(size, 0)); // size만큼 가용블록 생성
+    // PUT(FTRP(new_bp), PACK(size, 0)); 
+    // PUT(PRED_LOC(new_bp), NULL);
+    // PUT(SUCC_LOC(new_bp), ); // 가장 마지막에 생성된 free 블록의 successor를 가리켜야 한다.
+    // PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새 에필로그의 헤더가 된다.
+    // root = SUCC_LOC(bp);
 
     return coalesce(bp);
 
@@ -139,7 +140,7 @@ static void *find_fit(size_t asize)
     {
         if(bp == heap_listp)
         {
-            retrun NULL;
+            return NULL;
         }
         bp = SUCC(bp);
         size = GET_SIZE(HDRP(bp-WSIZE));
@@ -151,14 +152,18 @@ static void *find_fit(size_t asize)
 
 static void place(void *bp, size_t asize) // 수정 필요
 {
-    size_t origin_size = GET_SIZE(bp - WSIZE); // 할당 가능한 메모리 블록의 사이즈 저장
-    if (origin_size - asize >= 2 * DSIZE) { // 할당 가능한 블록에서 할당할 블록의 사이즈 차가 쿼드워드보다 크거나 같다면 안쓰는 부분을 가용상태로
+    size_t origin_size = GET_SIZE(HDRP(bp)); // 할당 가능한 메모리 블록의 사이즈 저장
+    if (origin_size - asize >= 3 * DSIZE) { // 할당 가능한 블록에서 할당할 블록의 사이즈 차가 쿼드워드보다 크거나 같다면 안쓰는 부분을 가용상태로
+        PUT(SUCC_LOC(PRED(bp)), SUCC(bp));
+        PUT(PRED_LOC(SUCC(bp)), PRED(bp));
         PUT(HDRP(bp), PACK(asize, 1));
         PUT(FTRP(bp), PACK(asize, 1));
         PUT(HDRP(bp + asize), PACK(origin_size - asize, 0));
         mm_free(bp + asize);
+        root += asize;
     }
     else { // 안쓰는 블록을 쪼개봤자 필요가 없다면, 전부 할당한다.
+        root = SUCC(bp);
         PUT(HDRP(bp), PACK(origin_size, 1));
         PUT(FTRP(bp), PACK(origin_size, 1));
     }
@@ -167,14 +172,6 @@ static void place(void *bp, size_t asize) // 수정 필요
 // 가용 리스트에서 블록 할당하기
 void *mm_malloc(size_t size)
 {
-    // int newsize = ALIGN(size + SIZE_T_SIZE);
-    // void *p = mem_sbrk(newsize);
-    // if (p == (void *)-1)
-	// return NULL;
-    // else {
-    //     *(size_t *)p = size;
-    //     return (void *)((char *)p + SIZE_T_SIZE);
-    // }
     size_t asize; // 할당할 메모리 블록의 크기 저장 변수
     size_t extendsize; // 확장할 메모리 블록의 크기 저장 변수
     char *bp;
@@ -187,7 +184,7 @@ void *mm_malloc(size_t size)
     if (size <= DSIZE){ // 요청 메모리가 더블워드보다 작으면 쿼드 워드로 설정
         asize = 3*DSIZE;
     }else{ // 그 외에는 요청한 메모리 크기에 헤더와 풋터의 오버헤드를 고려해서 크기 설정
-        asize = DSIZE*((size+(3*DSIZE) + (DSIZE-1)) / DSIZE);
+        asize = DSIZE*((size+(2*DSIZE) + (DSIZE-1)) / DSIZE);
     }
 
     // 가용 블록을 가용리스트에서 검색하고 할당기는 요청한 블록을 배치한다.
@@ -247,6 +244,9 @@ void mm_free(void *bp)
 
     PUT(HDRP(bp), PACK(size, 0)); // bp에 할당된 메모리 블록의 헤더 가용상태로 변경
     PUT(FTRP(bp), PACK(size, 0)); // bp에 할당된 메모리 블록의 풋터 가용상태로 변경
+    PUT(PRED(bp), NULL);
+    PUT(SUCC(bp), SUCC(root));
+    root = SUCC_LOC(bp);
     coalesce(bp); // bp에 할당된 메모리 블록과 인접한 블록들을 병합하는 함수 호출
 }
 

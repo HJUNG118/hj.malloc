@@ -57,8 +57,9 @@ team_t team = {
 
 #define PRED_LOC(bp) HDRP(bp)+WSIZE // prev가 들어갈 주소
 #define SUCC_LOC(bp) HDRP(bp)+DSIZE // succ가 들어갈 주소
-#define PRED(bp) *(char *)PRED_LOC(bp) // pred
-#define SUCC(bp) *(char *)SUCC_LOC(bp)
+#define POST_PRED(bp) *(char *)PRED_LOC(bp) // pred
+#define NEXT_SUCC(bp) *(char *)SUCC_LOC(bp)
+#define FIRST POST_PRED(bp) 
 
 
 /* single word (4) or double word (8) alignment */
@@ -77,7 +78,7 @@ static void place(void *bp, size_t asize);
 
 // 프롤로그 블록
 static char *heap_listp;
-// 최초 가용 블록으로 힙 생성하기
+//최초 가용 블록으로 힙 생성하기
 void *root = NULL; // root 포인터 선언
 int mm_init(void)
 {
@@ -98,9 +99,10 @@ int mm_init(void)
     void *start = heap_listp + DSIZE;
     PUT(HDRP(start), PACK(CHUNKSIZE, 0));
     PUT(FTRP(start), PACK(CHUNKSIZE, 0));
-    PUT(PRED_LOC(start), NULL);
+    PUT(PRED_LOC(start), heap_listp-WSIZE);
     PUT(SUCC_LOC(start), heap_listp);
     root = SUCC_LOC(start);
+
     return 0;
 }
 // 새 가용 블록으로 힙 확장하기
@@ -138,11 +140,11 @@ static void *find_fit(size_t asize)
     
     while(size < asize)
     {
-        if(bp == heap_listp)
+        if(NEXT_SUCC(bp) == heap_listp)
         {
             return NULL;
         }
-        bp = SUCC(bp);
+        bp = NEXT_SUCC(bp);
         size = GET_SIZE(HDRP(bp-WSIZE));
     }
     return bp-WSIZE;
@@ -150,20 +152,42 @@ static void *find_fit(size_t asize)
     // PUT(FTRP(bp-WSIZE), PACK(asize, 1));
 }
 
-static void place(void *bp, size_t asize) // 수정 필요
+static void place(void *bp, size_t asize) // 수정 필요 
 {
+    void *new_bp = bp + asize;
     size_t origin_size = GET_SIZE(HDRP(bp)); // 할당 가능한 메모리 블록의 사이즈 저장
     if (origin_size - asize >= 3 * DSIZE) { // 할당 가능한 블록에서 할당할 블록의 사이즈 차가 쿼드워드보다 크거나 같다면 안쓰는 부분을 가용상태로
-        PUT(SUCC_LOC(PRED(bp)), SUCC(bp));
-        PUT(PRED_LOC(SUCC(bp)), PRED(bp));
-        PUT(HDRP(bp), PACK(asize, 1));
-        PUT(FTRP(bp), PACK(asize, 1));
-        PUT(HDRP(bp + asize), PACK(origin_size - asize, 0));
-        mm_free(bp + asize);
-        root += asize;
+        if (POST_PRED(bp) == heap_listp-WSIZE){
+            PUT(PRED_LOC(new_bp), heap_listp-WSIZE);
+            PUT(SUCC_LOC(new_bp), heap_listp);
+            PUT(HDRP(bp), PACK(asize, 1));
+            PUT(FTRP(bp), PACK(asize, 1));
+            PUT(HDRP(new_bp), PACK(origin_size - asize, 0));
+            PUT(FTRP(new_bp), PACK(origin_size - asize, 0));
+            mm_free(new_bp);
+            root = SUCC_LOC(new_bp);
+
+        }
+        else{
+            PUT(SUCC_LOC(POST_PRED(bp)), NEXT_SUCC(bp));
+            PUT(PRED_LOC(NEXT_SUCC(bp)), POST_PRED(bp));
+            PUT(HDRP(bp), PACK(asize, 1));
+            PUT(FTRP(bp), PACK(asize, 1));
+            PUT(HDRP(new_bp), PACK(origin_size - asize, 0));
+            PUT(FTRP(new_bp), PACK(origin_size - asize, 0));
+            PUT(SUCC_LOC(new_bp), root);
+            PUT(PRED_LOC(new_bp), heap_listp-WSIZE);
+            root = SUCC_LOC(new_bp);
+        }
     }
     else { // 안쓰는 블록을 쪼개봤자 필요가 없다면, 전부 할당한다.
-        root = SUCC(bp);
+        // 할당할 때는 prev, succ 포인터 필요 없음
+        if (POST_PRED(bp) == heap_listp-WSIZE){
+            PUT(PRED_LOC(new_bp), heap_listp-WSIZE);
+            PUT(SUCC_LOC(new_bp), heap_listp);
+            root = SUCC_LOC(new_bp);
+        }
+        root = NEXT_SUCC(bp);
         PUT(HDRP(bp), PACK(origin_size, 1));
         PUT(FTRP(bp), PACK(origin_size, 1));
     }
@@ -244,8 +268,8 @@ void mm_free(void *bp)
 
     PUT(HDRP(bp), PACK(size, 0)); // bp에 할당된 메모리 블록의 헤더 가용상태로 변경
     PUT(FTRP(bp), PACK(size, 0)); // bp에 할당된 메모리 블록의 풋터 가용상태로 변경
-    PUT(PRED(bp), NULL);
-    PUT(SUCC(bp), SUCC(root));
+    PUT(POST_PRED(bp), NULL);
+    PUT(NEXT_SUCC(bp), SUCC(root));
     root = SUCC_LOC(bp);
     coalesce(bp); // bp에 할당된 메모리 블록과 인접한 블록들을 병합하는 함수 호출
 }

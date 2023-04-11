@@ -120,6 +120,9 @@ static void *extend_heap(size_t words)
     if ((long)(bp = mem_sbrk(size)) == -1){
         return NULL;
     }
+    PUT(HDRP(bp), PACK(size, 0)); // size만큼 가용블록 생성
+    PUT(FTRP(bp), PACK(size, 0)); 
+    PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새 에필로그의 헤더가 된다.
     // if(bp == heap_listp+DSIZE){ // 처음이라면 bp return
     //     return bp;
     // }
@@ -129,7 +132,7 @@ static void *extend_heap(size_t words)
     // PUT(SUCC_LOC(new_bp), ); // 가장 마지막에 생성된 free 블록의 successor를 가리켜야 한다.
     // PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새 에필로그의 헤더가 된다.
     // root = SUCC_LOC(bp);
-    printf("extend!!bp: %p", bp);
+    printf("extend!!bp: %p\n", bp);
     return coalesce(bp);
 
 }
@@ -158,6 +161,7 @@ static void *find_fit(size_t asize)
 static void place(void *bp, size_t asize) // 수정 필요 
 {
     size_t origin_size = GET_SIZE(HDRP(bp)); // 할당 가능한 메모리 블록의 사이즈 저장
+    printf("asize = %d\n", asize);
     char *new_bp = bp + asize;
     char *ex_bp = bp + origin_size;
     printf("bp: %p\n", bp);
@@ -167,7 +171,7 @@ static void place(void *bp, size_t asize) // 수정 필요
         if (POST_PRED(bp) == heap_listp-WSIZE){
             printf("here\n");
             PUT(PRED_LOC(new_bp), heap_listp-WSIZE);
-            printf("RED_LOC(new_bp): %p\n POST_PRED): %p\n", heap_listp-WSIZE, POST_PRED(new_bp));
+            printf("heap_listp-WSIZE: %p\nPOST_PRED: %p\n", heap_listp-WSIZE, POST_PRED(new_bp));
             PUT(SUCC_LOC(new_bp), heap_listp);
             PUT(HDRP(bp), PACK(asize, 1));
             PUT(FTRP(bp), PACK(asize, 1));

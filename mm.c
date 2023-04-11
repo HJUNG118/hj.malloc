@@ -143,7 +143,7 @@ static void *find_fit(size_t asize)
     char *bp = root; // bp는 가장 첫번째 free 블록을 가리킨다.
     size_t size = GET_SIZE(HDRP(bp-WSIZE)); // 헤더의 사이즈와 할당 여부 저장
     // printf("size: %p\n", GET_SIZE(HDRP(bp-WSIZE))); // size:4096 잘찍힘
-    while (NEXT_SUCC(bp-WSIZE) != heap_listp)
+    while (NEXT_SUCC(bp-WSIZE) != heap_listp) // 다음 free블록이 있다면
     {
         if(size >= asize)
         {

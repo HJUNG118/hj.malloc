@@ -130,7 +130,7 @@ static void *find_fit(size_t asize)
     //     size = GET_SIZE(bp - WSIZE);
     // }
 
-    while (GET_SIZE(HDRP(bp)) != 0) {    //  넌 아니야 GET_SIZE(FTRP(bp) + WSIZE)
+    while (GET_SIZE(HDRP(bp)) != 0) {    //  넌 아니야 GET_SIZE(FTRP(bp) + WSIZE) != 0
         if (state == 0 && size >= asize) {
             return bp;
         }

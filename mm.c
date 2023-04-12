@@ -144,7 +144,7 @@ static void *find_fit(size_t asize)
     size_t size = GET_SIZE(HDRP(bp-WSIZE)); // 헤더의 사이즈와 할당 여부 저장
     printf("size: %d\n", GET_SIZE(HDRP(bp-WSIZE))); // size:4096 잘찍힘
 
-    if(NEXT_SUCC(bp-WSIZE) == heap_listp )
+    if(NEXT_SUCC(bp-WSIZE) == heap_listp)
     {
         if(size >= asize)
         {
@@ -152,7 +152,7 @@ static void *find_fit(size_t asize)
         }
     }
     return NULL;
-    // while(POST_PRED(bp-WSIZE) != heap_listp-WSIZE) // 다음 free블록이 있다면
+    // while(NEXT_SUCC(bp-WSIZE) != heap_listp) // 다음 free블록이 있다면
     // {
     //     // printf("heap_list:%p\n", heap_listp);
     //     // printf("bp:%p\n", bp);
@@ -230,9 +230,10 @@ static void place(void *bp, size_t asize) // 수정 필요
             if(NEXT_SUCC(bp) == heap_listp) // 마지막 블록 부분할당
             {
                 printf("last brk divide\n");
-                PUT(SUCC_LOC(new_bp), root);
-                PUT(PRED_LOC(new_bp), POST_PRED(root-WSIZE)); // POST_PRED(root-WSIZE) == heap_listp-wsize
-                PUT(SUCC_LOC(POST_PRED(bp)), NEXT_SUCC(bp)); // NEXT_SUCC(bp) == heap_listp
+                PUT(SUCC_LOC(new_bp), root); // new_bp의 suc은 root를 찍게되고
+                PUT(SUCC_LOC(POST_PRED(bp)), NEXT_SUCC(bp)); // 부분할당되기 전 free블록의 suc는 할당된 suc이 가리키는 값을 가진다.
+                PUT(PRED_LOC(root-WSIZE), PRED_LOC(new_bp)); // 원래 루트의 pred는 new_bp의 pred를 가지게 된다.
+                PUT(PRED_LOC(new_bp), POST_PRED(root-WSIZE));  // new_bp의 pred는 root의 pred 안의 값을 가지게 된다.
                 PUT(HDRP(bp), PACK(asize, 1));
                 PUT(FTRP(bp), PACK(asize, 1));
                 PUT(HDRP(new_bp), PACK(origin_size - asize, 0));
@@ -244,6 +245,7 @@ static void place(void *bp, size_t asize) // 수정 필요
                 printf("first brk divide\n");
                 PUT(SUCC_LOC(new_bp), NEXT_SUCC(bp));
                 PUT(PRED_LOC(new_bp), POST_PRED(bp)); // POST_PRED(root-WSIZE) == heap_listp-wsize
+                PUT(NEXT_SUCC(bp)-WSIZE, PRED_LOC(new_bp));
                 PUT(HDRP(bp), PACK(asize, 1));
                 PUT(FTRP(bp), PACK(asize, 1));
                 PUT(HDRP(new_bp), PACK(origin_size - asize, 0));
@@ -254,8 +256,9 @@ static void place(void *bp, size_t asize) // 수정 필요
             {
                 printf("middle brk divide\n");
                 PUT(SUCC_LOC(new_bp), root);
-                PUT(PRED_LOC(new_bp), POST_PRED(root-WSIZE)); // POST_PRED(root-WSIZE) == heap_listp-wsize
-                PUT(SUCC_LOC(POST_PRED(bp)), NEXT_SUCC(bp));
+                PUT(PRED_LOC(root-WSIZE), PRED_LOC(new_bp)); // PUT(PRED_LOC(new_bp), POST_PRED(root-WSIZE)); // 원래 루트의 pred는 new_bp의 pred를 가지게 된다.
+                PUT(PRED_LOC(new_bp), POST_PRED(root-WSIZE)); // new_bp의 pred는 원래 루트의 pred가 가리키던 값을 가진다.
+                PUT(SUCC_LOC(POST_PRED(bp)), NEXT_SUCC(bp)); // 할당된 블록 양옆 연결
                 PUT(PRED_LOC(NEXT_SUCC(bp)-WSIZE), POST_PRED(bp));
                 PUT(HDRP(bp), PACK(asize, 1));
                 PUT(FTRP(bp), PACK(asize, 1));
@@ -287,21 +290,22 @@ static void place(void *bp, size_t asize) // 수정 필요
             if (NEXT_SUCC(bp) == heap_listp)
             { // 마지막 블록 전체 할당
                 printf("last brk all free\n");
+                PUT(SUCC_LOC(POST_PRED(bp)), NEXT_SUCC(bp)); // 할당된 블록 양옆 연결
                 PUT(HDRP(bp), PACK(origin_size, 1));
                 PUT(FTRP(bp), PACK(origin_size, 1));  
                 ex_bp = extend_heap(CHUNKSIZE/WSIZE);
-                PUT(PRED_LOC(ex_bp), heap_listp-WSIZE); 
-                PUT(SUCC_LOC(ex_bp), root); // SUCC_LOC(bp) == heap_listp  
-                PUT(SUCC_LOC(POST_PRED(ex_bp)), heap_listp);                
+                PUT(PRED_LOC(ex_bp), POST_PRED(root-WSIZE));  // ex_bp의 pred는 원래 root의 pred값을 가진다.
+                PUT(SUCC_LOC(ex_bp), root); // ex_bp의 suc은 root를 가진다. 
+                PUT(PRED_LOC(root-WSIZE), PRED_LOC(ex_bp)); //PUT(SUCC_LOC(POST_PRED(ex_bp)), heap_listp);               
                 root = SUCC_LOC(ex_bp);
             }
             else if(POST_PRED(bp) == heap_listp-WSIZE) // 첫번째 블록 전체 할당
             {
                 printf("first brk all free\n");
-                PUT(PRED_LOC(NEXT_SUCC(bp)-WSIZE), PRED_LOC(bp)); // PRED_LOC(bp) == heap_listp-WSIZE
+                PUT(PRED_LOC(NEXT_SUCC(bp)-WSIZE), POST_PRED(bp));
+                root = NEXT_SUCC(bp); // next_succ(bp)를 쓰려면 할당되기 전에 안그러면 정보 사라짐
                 PUT(HDRP(bp), PACK(origin_size, 1));
                 PUT(FTRP(bp), PACK(origin_size, 1));
-                root = NEXT_SUCC(bp);  
             }
             else{ // 중간 블록 전체 할당
                 printf("middle brk all free\n");
@@ -357,7 +361,6 @@ static void *coalesce(void *bp) // 수정 필요
     size_t size = GET_SIZE(HDRP(bp)); // bp의 헤더에서 사이즈 정보 저장
     // case 1: 이전, 다음 블록 모두 할당된 상태면 bp 반환
     if (prev_alloc && next_alloc){
-        printf("wrong1\n");
         return bp;
     }
     // case 2: 이전 블록 할당, 다음 블록 가용 상태라면
@@ -365,11 +368,49 @@ static void *coalesce(void *bp) // 수정 필요
         size += GET_SIZE(HDRP(NEXT_BLKP(bp))); // 다음 블록의 헤더에서 사이즈 정보를 가져와 size에 저장
         PUT(HDRP(bp), PACK(size,0)); // bp의 헤더와 풋터의 사이즈를 통합한 사이즈로 변경, 가용상태로 변경
         PUT(FTRP(bp), PACK(size,0)); 
+    }
+    // case 3: 이전 블록 가용, 다음 블록 할당 상태라면
+    else if(!prev_alloc && next_alloc){
+        size += GET_SIZE(HDRP(PREV_BLKP(bp))); // 이전 블록의 헤더에서 사이즈 정보를 가져와 size에 저장
+        PUT(FTRP(bp), PACK(size,0)); // bp의 풋터 사이즈를 통합한 사이즈로 변경, 가용상태로 변경
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size,0)); // 이전 블록의 헤더 사이즈를 통합한 사이즈로 변경, 가용상태로 변경
+        bp = PREV_BLKP(bp); //bp를 이전 블록으로 옮겨줌
+    }
+    // case 4: 양쪽 블록 모두 가용 상태라면
+    else{
+        size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp))); // 양쪽 블로의 헤더에 저장된 사이즈 정보를 더해 size에 저장
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size,0)); // 양쪽 블록의 헤더와 풋터 사이즈를 통합한 사이즈로 변경, 가용상태로 변경
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(size,0)); 
+        bp = PREV_BLKP(bp); //bp를 이전 블록으로 옮겨줌
+    }
+    return bp;
+}
+
+static void *free_coalesce(void *bp, char *pred, char *succ) // 수정 필요
+{
+    
+    size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp))); // 이전 블록의 헤더에서 할당 정보 저장
+    size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp))); // 다음 블록의 헤더에서 할당 정보 저장
+    size_t size = GET_SIZE(HDRP(bp)); // bp의 헤더에서 사이즈 정보 저장
+    // case 1: 이전, 다음 블록 모두 할당된 상태면 bp 반환
+    if (prev_alloc && next_alloc){
+        printf("wrong1\n");
+        return bp;
+    }
+    // case 2: 이전 블록 할당, 다음 블록 가용 상태라면
+    else if(prev_alloc && !next_alloc){
+        size += GET_SIZE(HDRP(NEXT_BLKP(bp))); // 다음 블록의 헤더에서 사이즈 정보를 가져와 size에 저장
+        pred = GET((NEXT_BLKP(bp))); // 다음 블록의 prd
+        succ = GET((NEXT_BLKP(bp)+WSIZE)); // 다음 블록의 succ
+        PUT(HDRP(bp), PACK(size,0)); // bp의 헤더와 풋터의 사이즈를 통합한 사이즈로 변경, 가용상태로 변경
+        PUT(FTRP(bp), PACK(size,0)); 
         printf("real_coalece\n");
     }
     // case 3: 이전 블록 가용, 다음 블록 할당 상태라면
     else if(!prev_alloc && next_alloc){
         size += GET_SIZE(HDRP(PREV_BLKP(bp))); // 이전 블록의 헤더에서 사이즈 정보를 가져와 size에 저장
+        pred = GET((PREV_BLKP(bp))); // 이전 블록의 prd
+        succ = GET((PREV_BLKP(bp)+WSIZE)); // 이전 블록의 succ
         PUT(FTRP(bp), PACK(size,0)); // bp의 풋터 사이즈를 통합한 사이즈로 변경, 가용상태로 변경
         PUT(HDRP(PREV_BLKP(bp)), PACK(size,0)); // 이전 블록의 헤더 사이즈를 통합한 사이즈로 변경, 가용상태로 변경
         bp = PREV_BLKP(bp); //bp를 이전 블록으로 옮겨줌
@@ -378,14 +419,16 @@ static void *coalesce(void *bp) // 수정 필요
     // case 4: 양쪽 블록 모두 가용 상태라면
     else{
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp))); // 양쪽 블로의 헤더에 저장된 사이즈 정보를 더해 size에 저장
+        pred = GET((PREV_BLKP(bp))); // 이전 블록의 pred 
+        succ = GET((NEXT_BLKP(bp)+WSIZE)); // 다음 블록의 succ
         PUT(HDRP(PREV_BLKP(bp)), PACK(size,0)); // 양쪽 블록의 헤더와 풋터 사이즈를 통합한 사이즈로 변경, 가용상태로 변경
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size,0)); 
         bp = PREV_BLKP(bp); //bp를 이전 블록으로 옮겨줌
         printf("wrong4\n");
     }
+    printf("pred:%p, succ:%p\n", pred, succ);
     return bp;
 }
-
 // 블록을 반환
 void mm_free(void *bp)
 {
@@ -394,10 +437,9 @@ void mm_free(void *bp)
 
     PUT(HDRP(bp), PACK(size, 0)); // bp에 할당된 메모리 블록의 헤더 가용상태로 변경
     PUT(FTRP(bp), PACK(size, 0)); // bp에 할당된 메모리 블록의 풋터 가용상태로 변경
-    char *pred = POST_PRED(bp); // coal될 블록의 pred 안의 값
-    char *succ = NEXT_SUCC(bp); // coal될 블록의 succ 안의 값
-    printf("pred:%p, succ:%p\n", pred, succ);
-    coalesce(bp);
+    char *pred; // coal될 블록의 pred 안의 값
+    char *succ; // coal될 블록의 succ 안의 값
+    free_coalesce(bp, pred, succ);
     printf("coalesce:%p\n", bp);
     if(NEXT_SUCC(root-WSIZE) == heap_listp)
     {
@@ -410,9 +452,9 @@ void mm_free(void *bp)
         // coal되기 전에 앞 뒤 블록 연결
         PUT(SUCC_LOC(pred), succ);
         PUT(PRED_LOC(succ-WSIZE), pred);
-        PUT(SUCC_LOC(bp), root);
-        PUT(PRED_LOC(root-WSIZE), PRED_LOC(bp)); // POST_PRED(root-WSIZE) == heap_listp-wsize
-        PUT(PRED_LOC(bp), POST_PRED(root-WSIZE));
+        PUT(SUCC_LOC(bp), root); // bp succ에 원래 root 넣기
+        PUT(PRED_LOC(root-WSIZE), PRED_LOC(bp)); // root pred가 새로운 블록 pred 가리키기
+        PUT(PRED_LOC(bp), POST_PRED(root-WSIZE));// POST_PRED(root-WSIZE) == heap_listp-wsize
         root = SUCC_LOC(bp);
     }
     printf("now root: %p\n", root);

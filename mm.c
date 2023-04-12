@@ -72,7 +72,10 @@ static void place(void *bp, size_t asize);
 
 // 프롤로그 블록
 static char *heap_listp;
-// 최초 가용 블록으로 힙 생성하기
+/* 
+* 최초 가용 블록으로 힙 생성하기
+*/
+
 int mm_init(void)
 {
     // mem_sbrk: 힙 영역을 incr bytes만큼 확장, 새로 할당된 힙 영역의 첫번째 byte를 가리키는 포인터 리턴
@@ -84,14 +87,16 @@ int mm_init(void)
     PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1)); // prologue 헤더 생성
     PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1)); // prologue 풋터 생성
     PUT(heap_listp + (3 * WSIZE), PACK(0, 1)); // epilogue 헤더 생성
-    heap_listp += (2 * WSIZE); // heap_listp을 더블워드만큼 증가시켜 할당 가능한 메모리 블록의 시작 주소를 가리키도록 함
+    heap_listp += (2 * WSIZE); // heap_listp를 더블워드만큼 증가시켜 할당 가능한 메모리 블록의 시작 주소를 가리키도록 함
 
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL){
         return -1;
     }
     return 0;
 }
-// 새 가용 블록으로 힙 확장하기
+/*
+* 새 가용 블록으로 힙 확장하기
+*/
 static void *extend_heap(size_t words)
 {
     char *bp;
@@ -112,12 +117,16 @@ static void *extend_heap(size_t words)
 
 }
 
-// 할당하려고 하는 메모리가 들어갈 수 있는 블록 찾기
+/*
+* 할당하려고 하는 메모리가 들어갈 수 있는 블록 찾기
+*/
 static void *find_fit(size_t asize)
 {
     char *bp = heap_listp + DSIZE; // prologue 풋터에서 8바이트 즉. 다음 헤더의 payload를 가리키게 한다.
     size_t size = GET_SIZE(HDRP(bp)); // 헤더의 사이즈와 할당 여부 저장
-    size_t state = GET_ALLOC(HDRP(bp));
+    size_t state = GET_ALLOC(HDRP(bp)); 
+    // 두개의 정답코드
+    // 1. 힙영역 마지막 주소 이용
     // while (1) {
     //     if (bp > (char*)mem_heap_hi()){ // 헤더의 주소가 epilogue를 넘어서면 NULL반환
     //         return NULL; 
@@ -130,7 +139,8 @@ static void *find_fit(size_t asize)
     //     size = GET_SIZE(bp - WSIZE);
     // }
 
-    while (GET_SIZE(HDRP(bp)) != 0) {    //  넌 아니야 GET_SIZE(FTRP(bp) + WSIZE) != 0
+    // 2. 에필로그 블록 사이즈 이용
+    while (GET_SIZE(HDRP(bp)) != 0) {
         if (state == 0 && size >= asize) {
             return bp;
         }
@@ -141,33 +151,28 @@ static void *find_fit(size_t asize)
     return NULL;
 }
 
+/*
+* 요청받은 메모리를 적절한 위치의 가용 블록에 할당
+*/
 static void place(void *bp, size_t asize)
 {
     size_t origin_size = GET_SIZE(bp - WSIZE); // 할당 가능한 메모리 블록의 사이즈 저장
     if (origin_size - asize >= 2 * DSIZE) { // 할당 가능한 블록에서 할당할 블록의 사이즈 차가 쿼드워드보다 크거나 같다면 안쓰는 부분을 가용상태로
         PUT(HDRP(bp), PACK(asize, 1));
         PUT(FTRP(bp), PACK(asize, 1));
-        PUT(HDRP(bp + asize), PACK(origin_size - asize, 0));
-        mm_free(bp + asize);
+        PUT(HDRP(bp + asize), PACK(origin_size - asize, 0)); // mm_free 호출을 위한 헤더 사이즈 설정
+        mm_free(bp + asize); // 새로운 가용블록의 헤더, 풋터 설정을 위한 mm_free 호출
     }
     else { // 안쓰는 블록을 쪼개봤자 필요가 없다면, 전부 할당한다.
         PUT(HDRP(bp), PACK(origin_size, 1));
         PUT(FTRP(bp), PACK(origin_size, 1));
     }
 }
-
-
-// 가용 리스트에서 블록 할당하기
+/*
+* 가용 리스트에서 블록 할당하기
+*/
 void *mm_malloc(size_t size)
 {
-    // int newsize = ALIGN(size + SIZE_T_SIZE);
-    // void *p = mem_sbrk(newsize);
-    // if (p == (void *)-1)
-	// return NULL;
-    // else {
-    //     *(size_t *)p = size;
-    //     return (void *)((char *)p + SIZE_T_SIZE);
-    // }
     size_t asize; // 할당할 메모리 블록의 크기 저장 변수
     size_t extendsize; // 확장할 메모리 블록의 크기 저장 변수
     char *bp;
@@ -198,10 +203,9 @@ void *mm_malloc(size_t size)
 
     return bp;
 }
-
-// 
-
-// 경계 태그 연결을 사용해서 상수 시간에 인접 가용 블록들과 통합한다.
+/* 
+* 경계 태그 연결을 사용해서 상수 시간에 인접 가용 블록들과 통합
+*/
 static void *coalesce(void *bp)
 {
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp))); // 이전 블록의 헤더에서 할당 정보 저장
@@ -233,8 +237,9 @@ static void *coalesce(void *bp)
     }
     return bp;
 }
-
-// 블록을 반환
+/*
+* 블록 반환
+*/
 void mm_free(void *bp)
 {
     // bp에 할당된 메모리 블록의 헤더에서 정보를 가져와 size 변수에 저장
@@ -244,7 +249,9 @@ void mm_free(void *bp)
     PUT(FTRP(bp), PACK(size, 0)); // bp에 할당된 메모리 블록의 풋터 가용상태로 변경
     coalesce(bp); // bp에 할당된 메모리 블록과 인접한 블록들을 병합하는 함수 호출
 }
-
+/*
+* 재할당
+*/
 void *mm_realloc(void *ptr, size_t size)
 {
     void *oldptr = ptr; // 기존 메모리 블록의 포인터

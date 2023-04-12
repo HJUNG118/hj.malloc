@@ -4,14 +4,12 @@
 
 /*
  * mm-naive.c - The fastest, least memory-efficient malloc package.
- * 
- * In this naive approach, a block is allocated by simply incrementing
- * the brk pointer.  A block is pure payload. There are no headers or
- * footers.  Blocks are never coalesced or reused. Realloc is
- * implemented directly using mm_malloc and mm_free.
- *
- * NOTE TO STUDENTS: Replace this header comment with your own header
- * comment that gives a high level description of your solution.
+ * A malloc allocator using this explicit free list uses a doubly linked list.
+ * Available blocks connect addresses in a LIFO fashion.
+ * It consists of a doubly-linked availability list containing 
+ * (predecessor) and (successor) pointers within the available blocks.
+ * The free block must be large enough to contain all necessary pointers, headers, and footers.
+ * This program runs without random trace files.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,7 +78,7 @@ static void *extend_heap(size_t words);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
 
-// 프롤로그 블록
+// 프롤로그 footer 블록
 static char *heap_listp;
 // 첫번째 가용블록의 successor를 가리키는 포인터
 void *root = NULL;
@@ -90,9 +88,7 @@ void *root = NULL;
 */
 int mm_init(void)
 {
-    // mem_sbrk: 힙 영역을 incr bytes만큼 확장, 새로 할당된 힙 영역의 첫번째 byte를 가리키는 포인터 리턴
-    // 불러올 수 없으면 -1 반환
-    if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1){
+    if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1){ // mem_sbrk: 힙 영역을 incr bytes만큼 확장, 새로 할당된 힙 영역의 첫번째 byte를 가리키는 포인터 리턴
         return -1;
     }
     PUT(heap_listp, 0); // 패딩 할당

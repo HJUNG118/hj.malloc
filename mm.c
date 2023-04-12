@@ -369,18 +369,18 @@ void mm_free(void *bp)
     bp = free_coalesce(bp, pred, succ);
     root = SUCC_LOC(bp); // coal되고 갱신된 bp로 root 갱신
 
-    if(NEXT_SUCC(root-WSIZE) == heap_listp) // coal된 후에도 free 블록 1개
+    if(NEXT_SUCC(origin_root_pred) == heap_listp) // coal된 후에도 free 블록 1개
     {
         PUT(SUCC_LOC(bp), heap_listp);
         PUT(PRED_LOC(bp), heap_listp - WSIZE); //POST_PRED(root-WSIZE) = heap_list - WSIZE
         // root = SUCC_LOC(bp);
     }
-    else if(GET_ALLOC(NEXT_BLKP(bp)) == 1 && GET_ALLOC(PREV_BLKP(bp)) == 1)
-    {
-        PUT(SUCC_LOC(bp), origin_root_succ); // bp succ에 원래 root 넣기
-        PUT(origin_root_pred, PRED_LOC(bp)); // 원래 root pred가 새로운 블록 pred 가리키기
-        PUT(PRED_LOC(bp), heap_listp-WSIZE); // POST_PRED(root-WSIZE) == heap_listp-wsize
-    }
+    // else if(GET_ALLOC(NEXT_BLKP(bp)) == 1 && GET_ALLOC(PREV_BLKP(bp)) == 1)
+    // {
+    //     PUT(SUCC_LOC(bp), origin_root_succ); // bp succ에 원래 root 넣기
+    //     PUT(origin_root_pred, PRED_LOC(bp)); // 원래 root pred가 새로운 블록 pred 가리키기
+    //     PUT(PRED_LOC(bp), heap_listp-WSIZE); // POST_PRED(root-WSIZE) == heap_listp-wsize
+    // }
     else // coal된 후에 새로운 블록이 생김
     {
         // coal되기 전에 앞 뒤 블록 연결

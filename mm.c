@@ -1,13 +1,11 @@
 /*
   mm-naive.c - The fastest, least memory-efficient malloc package.
   
-  In this naive approach, a block is allocated by simply incrementing
-  the brk pointer.  A block is pure payload. There are no headers or
-  footers.  Blocks are never coalesced or reused. Realloc is
-  implemented directly using mm_malloc and mm_free.
- 
-  NOTE TO STUDENTS: Replace this header comment with your own header
-  comment that gives a high level description of your solution.
+  * This program implements malloc using an implicit list.
+  * Using the first fit placement policy, all blocks are allocated 
+  * according to its size and whether it is allocated or not.
+  * All usable blocks must contain header and footer in quadword alignment.
+  * New available blocks are coalesced with the prev and next blocks.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -127,17 +125,17 @@ static void *find_fit(size_t asize)
     size_t state = GET_ALLOC(HDRP(bp)); 
     // 두개의 정답코드
     // 1. 힙영역 마지막 주소 이용
-    // while (1) {
-    //     if (bp > (char*)mem_heap_hi()){ // 헤더의 주소가 epilogue를 넘어서면 NULL반환
-    //         return NULL; 
-    //     }
-    //     if (state == 0 && size >= asize) { // 가용상태이고 할당하려고 하는 메모리 사이즈보다 크거나 같다면 해당 bp를 반환
-    //         return bp;
-    //     }
-    //     bp += size; // bp 포인터와 할당상태, 사이즈를 갱신해준다.
-    //     state = GET_ALLOC(bp - WSIZE);
-    //     size = GET_SIZE(bp - WSIZE);
-    // }
+    /*while (1) {
+        if (bp > (char*)mem_heap_hi()){ // 헤더의 주소가 epilogue를 넘어서면 NULL반환
+            return NULL; 
+        }
+        if (state == 0 && size >= asize) { // 가용상태이고 할당하려고 하는 메모리 사이즈보다 크거나 같다면 해당 bp를 반환
+            return bp;
+        }
+        bp += size; // bp 포인터와 할당상태, 사이즈를 갱신해준다.
+        state = GET_ALLOC(bp - WSIZE);
+        size = GET_SIZE(bp - WSIZE);
+    }*/
 
     // 2. 에필로그 블록 사이즈 이용
     while (GET_SIZE(HDRP(bp)) != 0) {

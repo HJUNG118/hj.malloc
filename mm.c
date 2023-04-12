@@ -30,7 +30,7 @@ team_t team = {
     /* Second member's full name (leave blank if none) */
     "SeongbeomAhn",
     /* Second member's email address (leave blank if none) */
-    "MinkiJo"
+    "MinkiCho"
 };
 
 #define WSIZE 4 // 워드 = 헤더 = 풋터 사이즈(bytes)

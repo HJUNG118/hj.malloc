@@ -101,13 +101,12 @@ int mm_init(void)
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL){
         return -1;
     }
-    void *start = heap_listp + DSIZE; // pred_loc
+    void *start = heap_listp + DSIZE; // 
     PUT(HDRP(start), PACK(CHUNKSIZE, 0));
     PUT(FTRP(start), PACK(CHUNKSIZE, 0));
     PUT(PRED_LOC(start), heap_listp-WSIZE); // heap_listp-WSIZE가 제대로 안들어가고 있음
     PUT(SUCC_LOC(start), heap_listp);
     root = SUCC_LOC(start);
-    // printf("--------------------init----------------------\n");
     return 0;
 }
 // 새 가용 블록으로 힙 확장하기
@@ -135,15 +134,13 @@ static void *find_fit(size_t asize)
     char *succ = root; // bp는 가장 첫번째 free 블록을 가리킨다.
     size_t size = GET_SIZE(HDRP(succ - WSIZE)); // 헤더의 사이즈와 할당 여부 저장
 
-    while (size < asize) {
-        if (NEXT_SUCC(succ - WSIZE) == heap_listp) {
-            return NULL;
+    while (GET_SIZE(HDRP(succ - WSIZE)) < asize)
+    {
+        if (NEXT_SUCC(succ - WSIZE) == heap_listp && PRED_LOC(succ - WSIZE) != heap_listp - WSIZE) {
+            return NULL; // suc이 heap_listp이고, pred가 heap_listp가 아니라면 마지막 블록
         }
-        // printf("while!\n");
         succ = NEXT_SUCC(succ - WSIZE);
-        size = GET_SIZE(HDRP(succ - WSIZE));
     }
-    // printf("no while\n");
     return succ - WSIZE;
 }
 
@@ -375,12 +372,6 @@ void mm_free(void *bp)
         PUT(PRED_LOC(bp), heap_listp - WSIZE); //POST_PRED(root-WSIZE) = heap_list - WSIZE
         // root = SUCC_LOC(bp);
     }
-    // else if(GET_ALLOC(NEXT_BLKP(bp)) == 1 && GET_ALLOC(PREV_BLKP(bp)) == 1)
-    // {
-    //     PUT(SUCC_LOC(bp), origin_root_succ); // bp succ에 원래 root 넣기
-    //     PUT(origin_root_pred, PRED_LOC(bp)); // 원래 root pred가 새로운 블록 pred 가리키기
-    //     PUT(PRED_LOC(bp), heap_listp-WSIZE); // POST_PRED(root-WSIZE) == heap_listp-wsize
-    // }
     else // coal된 후에 새로운 블록이 생김
     {
         // coal되기 전에 앞 뒤 블록 연결
